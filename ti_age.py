@@ -2,26 +2,32 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-url = 'https://liquipedia.net/dota2/The_International/2018'
+def getPageFromAPI(pageName):
+    if pageName.startswith('/dota2/'):
+        pageName = pageName[7:]
+    url = f'https://liquipedia.net/dota2/api.php?action=query&prop=revisions&titles={pageName}&rvprop=content&rvparse&format=json'
+    r = requests.get(url)
+    json = r.json()
+    html = list(json['query']['pages'].values())[0]["revisions"][0]['*']
+    if 'redirectMsg' in html:
+        pageNameNew = re.search(r'title="(.+?)"', html)
+        return getPageFromAPI(pageNameNew[1])
+    else:
+        return BeautifulSoup(html, 'lxml')
 
-html = requests.get(url)
-html.encoding = 'utf-8'
-soup = BeautifulSoup(html.text, "lxml")
-divs = soup.find_all('div', class_='teamcard')
+divs = getPageFromAPI('The_International/2018').find_all('div', class_='teamcard')
 
 for div in divs:
     center = div.find('center')
     teamname = re.search(r'title="(.+?)"', str(center))[1]
     print(teamname)
-    for tr in div.find_all('tr'):      
-        string = re.search(r'<th>([12345])</th><td><a.+</a>.+<a.+href="(.+)".+?title="(.+?)"', str(tr))
+    for tr in div.find_all('tr'):
+        string = re.search(
+            r'<th>([12345])</th><td><a.+</a>.+<a.+href="(.+)".+?title="(.+?)"', str(tr))
         if string is not None:
             pos = string[1]
             name = string[3]
-            url2 = 'https://liquipedia.net' + string[2]
-            html2 = requests.get(url2)
-            html2.encoding = 'utf-8'
-            bd = BeautifulSoup(html2.text, "lxml").find('span', class_='bday')
+            bd = getPageFromAPI(string[2]).find('span', class_='bday')
             if bd is not None:
                 bday = innerHTML = "".join([str(x) for x in bd.contents])
             else:
